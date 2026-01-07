@@ -1,34 +1,54 @@
-node {
-    def app
+def app
 
-    stage('Clone repository') {
-      
+pipeline {
+    agent any
 
-        checkout scm
-    }
+    stages {
 
-    stage('Build image') {
-  
-       app = docker.build("Aswini3006/test")
-    }
+        stage('Clone repository') {
+            steps {
+                checkout scm
+            }
+        }
 
-    stage('Test image') {
-  
+        stage('Build image') {
+            steps {
+                script {
+                    app = docker.build("Aswini3006/test:${BUILD_NUMBER}")
+                }
+            }
+        }
 
-        app.inside {
-            sh 'echo "Tests passed"'
+        stage('Test image') {
+            steps {
+                script {
+                    app.inside {
+                        sh 'echo "Tests passed"'
+                    }
+                }
+            }
+        }
+
+        stage('Push image') {
+            steps {
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub') {
+                        app.push("${BUILD_NUMBER}")
+                        app.push("latest")
+                    }
+                }
+            }
+        }
+
+        stage('Trigger ManifestUpdate') {
+            steps {
+                script {
+                    echo "triggering updatemanifest job"
+                    build job: 'updatemanifest',
+                        parameters: [string(name: 'DOCKERTAG', value: BUILD_NUMBER)]
+                }
+            }
         }
     }
-
-    stage('Push image') {
-        
-        docker.withRegistry('https://registry.hub.docker.com', 'Docker') {
-            app.push("${env.BUILD_NUMBER}")
-        }
-    }
-    
-    stage('Trigger ManifestUpdate') {
-                echo "triggering updatemanifestjob"
-                build job: 'updatemanifest', parameters: [string(name: 'DOCKERTAG', value: env.BUILD_NUMBER)]
-        }
 }
+ 
